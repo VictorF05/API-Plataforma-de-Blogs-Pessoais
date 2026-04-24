@@ -1,78 +1,145 @@
 import express from 'express';
+import { pool } from '../database.js';
 
-const routerPosts = express.Router();
-
-// array de posts
-const posts = [
-    { id: 3, title: 'meu primeiro post', content: 'hoje é o primeiro post do meu blog...', tags: 'geral' },
-    { id: 6, title: 'o que é front-end', content: 'em algum momento você já...', tags: 'frontend' },
-    { id: 10, title: 'o que é back-end', content: 'ontem falamos sobre front-end...', tags: 'backend' },
-    { id: 2, title: 'aprendendo html', content: 'o primeiro passo para aprender...', tags: 'frontend' },
-    { id: 13, title: 'introdução ao css', content: 'blz, agora é hora de dar estilo para nossa...', tags: 'frontend' },
-    { id: 12, title: 'desmistificando o javascript', content: 'muito bem, vamos dar vida a nossa pagina...', tags: 'frontend' },
-    { id: 20, title: 'javascript no servidor?', content: 'quem diria hein, nem só de front vivera o javascript...', tags: 'backend' },
-    { id: 1, title: 'o que é o node.js?', content: 'novo motor v8 do chrome é usado também em...', tags: 'backend' },
-    { id: 45, title: 'adeus express? fastify é o novo queridinho', content: 'concorrência de peso surgiu recentemente...', tags: 'backend' },
-    { id: 7, title: 'bun é melhor que node?', content: 'o criador do node resolveu...', tags: 'backend' }
-];
+const postsRouter = express.Router();
 
 // read all posts
-routerPosts.get('/posts', (req, res) => {
-    const searchTags = req.query.tags
-    if (searchTags) {
-        const result = posts.filter((post) => post.tags === searchTags);
-        return res.status(200).json(result);
+postsRouter.get('/', async (req, res) => {
+    try {
+        const searchTags = req.query.tags;
+        const query = {
+            text: 'SELECT * FROM posts',
+            values: []
+        }
+        if (searchTags) {
+            query.text += ' WHERE tags LIKE $1';
+            query.values.push(`%${searchTags}%`);
+        }
+        const responseDB = await pool.query(query);
+        return res.status(200).json(responseDB.rows);
+    } catch (err) {
+        console.error('Erro no endpoint GET /posts', err);
+        return res.status(500).json({ error: 'Internal server error' });
     }
-    return res.status(200).json(posts);
 });
 
 // read post by id
-routerPosts.get('/posts/:id', (req, res) => {
-    const postId = Number(req.params.id);
-    const found = posts.find((post) => post.id === postId);
-    if (!found) return res.status(404).json({ error: `Post ${postId} not found!` });
-
-    return res.status(200).json(found);
+postsRouter.get('/:id', async (req, res) => {
+    try {
+        const postId = req.params.id;
+        if (isNaN(postId)) {
+            return res.status(400).json({ error: 'Invalid ID format. Must be a number.' });
+        }
+        const query = {
+            text: 'SELECT * FROM posts WHERE id = $1',
+            values: [postId]
+        }
+        const responseDB = await pool.query(query);
+        if (responseDB.rowCount === 0) {
+            return res.status(404).json({ error: 'ID not found!'});
+        }
+        return res.status(200).json(responseDB.rows[0]);
+    } catch (err) {
+        console.error('Erro no endpoint GET /posts/:id', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // create post
-routerPosts.post('/posts', (req, res) => {
-    const maxId = posts.reduce((prev, current) => {
-        return (prev.id > current.id) ? prev : current;
-    }, { id: 0 });
-
-    const newPost = {
-        id: maxId.id + 1,
-        title: req.body.title,
-        content: req.body.content,
-        tags: req.body.tags
+postsRouter.post('/', async (req, res) => {
+    try {
+        const { title, content, tags } = req.body;
+        if (title === undefined || content === undefined) {
+            return res.status(422).json({ error: 'title and content are required.' });
+        }
+        if (title.length < 3 || content.length < 3) {
+            return res.status(422).json({ error: 'title and content are minimum length(3).' });
+        }
+        const query = {
+            text: 'INSERT INTO posts (title,content,tags) VALUES ($1, $2, $3) RETURNING *',
+            values: [title,content,tags]
+        }
+        const responseDB = await pool.query(query);
+        return res.status(201).json(responseDB.rows[0]);
+    } catch (err) {
+        console.error('Erro no endpoint POST /posts', err);
+        return res.status(500).json({ error: 'Internal server error' });
     }
-
-    posts.push(newPost);
-
-    return res.status(201).json(newPost);
 });
 
 // delete post
-routerPosts.delete('/posts/:id', (req, res) => {
-    const postId = Number(req.params.id);
-    const indexDelete = posts.findIndex((post) => post.id === postId);
-    if (indexDelete === -1) return res.status(404).json({ error: `Post ${postId} not found!` });
-    posts.splice(indexDelete, 1);
-
-    return res.sendStatus(204);
+postsRouter.delete('/:id', async (req, res) => {
+    try {
+        const postId = req.params.id;
+        if (isNaN(postId)) {
+            return res.status(400).json({ error: 'Invalid ID format. Must be a number.' });
+        }
+        const query = {
+            text: 'DELETE FROM posts WHERE id = $1',
+            values: [postId]
+        }
+        const responseDB = await pool.query(query);
+        if (responseDB.rowCount === 0) {
+            return res.status(404).json({ error: 'ID not found!' });
+        }
+        return res.sendStatus(204);
+    } catch (err) {
+        console.error('Erro no endpoint DELETE /posts/:id', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // update post by id
-routerPosts.put('/posts/:id', (req, res) => {
-    const postId = Number(req.params.id);
-    const indexUpdate = posts.findIndex((post) => post.id === postId);
-    if (indexUpdate === -1) return res.status(404).json({ error: `Post ${postId} not found!` });
-    posts[indexUpdate].title = req.body.title;
-    posts[indexUpdate].content = req.body.content;
-    posts[indexUpdate].tags = req.body.tags;
+postsRouter.put('/:id', async (req, res) => {
+    try {
+        const postId = req.params.id;
+        if (isNaN(postId)) {
+            return res.status(400).json({ error: 'Invalid ID format. Must be a number.'});
+        }
+        const { title, content, tags } = req.body;
+        if (title === undefined && content === undefined && tags === undefined) {
+            return res.status(422).json({ error: 'nothing to change. Send title, content or tags to update.' });
+        }
 
-    return res.status(200).json(posts[indexUpdate]);
+        const fields = [];
+        const values = [];
+        let paramIndex = 1;
+
+        if (title !== undefined) {
+            if (title.length < 3) {
+                return res.status(422).json({ error: 'title are minimum length(3).' });
+            }
+            fields.push(`title = $${paramIndex++}`);
+            values.push(title);
+        }
+        if (content !== undefined) {
+            if (content.length < 3) {
+                return res.status(422).json({ error: 'content are minimum length(3).' });
+            }
+            fields.push(`content = $${paramIndex++}`);
+            values.push(content);
+        }
+        if (tags !== undefined) {
+            fields.push(`tags = $${paramIndex++}`);
+            values.push(tags);
+        }
+
+        values.push(postId);
+
+        const strFields = fields.join(', ');
+        const query = {
+            text: `UPDATE posts SET ${strFields} WHERE id = $${paramIndex} RETURNING *`,
+            values: values
+        }
+        const responseDB = await pool.query(query);
+        if (responseDB.rowCount === 0) {
+            return res.status(404).json({ error: 'ID not found!'});
+        }
+        return res.status(200).json(responseDB.rows[0]);
+    } catch (err) {
+        console.error('Erro no endpoint PUT /posts/:id', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
-export default routerPosts;
+export { postsRouter };
