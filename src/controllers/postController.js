@@ -13,11 +13,7 @@ const postController = {
 
     async getPostById(req, res) {
         try {
-            const postId = req.params.id;
-            if (isNaN(postId)) {
-                return res.status(400).json({ error: 'Invalid ID format. Must be a number.' });
-            }
-            const post = await postRepository.getPostById(postId);
+            const post = await postRepository.getPostById(req.params.id);
             if (!post) {
                 return res.status(404).json({ error: 'ID not found!'});
             }
@@ -31,15 +27,6 @@ const postController = {
     async createPost(req, res) {
         try {
             const { title, content, tags } = req.body;
-
-            if (typeof title !== 'string' || !title.trim()) {
-                return res.status(422).json({ error: 'Title must be a non-empty string.' });
-            }
-
-            if (typeof content !== 'string' || !content.trim()) {
-                return res.status(422).json({ error: 'Content must be a non-empty string.' });
-            }
-
             const post = await postRepository.createPost({ title, content, tags });
             return res.status(201).json(post);
         } catch (err) {
@@ -50,11 +37,7 @@ const postController = {
 
     async deletePostById(req, res) {
         try {
-            const postId = req.params.id;
-            if (isNaN(postId)) {
-                return res.status(400).json({ error: 'Invalid ID format. Must be a number.' });
-            }
-            const postDeleted = await postRepository.deletePostById(postId);
+            const postDeleted = await postRepository.deletePostById(req.params.id);
             if (postDeleted === 0) {
                 return res.status(404).json({ error: 'ID not found!' });
             }
@@ -67,36 +50,8 @@ const postController = {
 
     async updatePostById(req, res) {
         try {
-            const postId = req.params.id;
-            if (isNaN(postId)) {
-                return res.status(400).json({ error: 'Invalid ID format. Must be a number.'});
-            }
-
             const { title, content, tags } = req.body;
-
-            if (title === undefined && content === undefined && tags === undefined) {
-                return res.status(422).json({ error: 'Nothing to change.' });
-            }
-
-            if (title !== undefined) {
-                if (typeof title !== 'string' || !title.trim()) {
-                    return res.status(422).json({ error: 'Title must be a non-empty string.' });
-                }
-            }
-
-            if (content !== undefined) {
-                if (typeof content !== 'string' || !content.trim()) {
-                    return res.status(422).json({ error: 'Content must be a non-empty string.' });
-                }
-            }
-
-            if (tags !== undefined) {
-                if (tags !== null && (typeof tags !== 'string' || !tags.trim())) {
-                    return res.status(422).json({ error: 'Tags must be a non-empty string or null.' });
-                }
-            }
-
-            const post = await postRepository.updatePostById(postId, { title, content, tags });
+            const post = await postRepository.updatePostById(req.params.id, { title, content, tags });
             if (!post) {
                 return res.status(404).json({ error: 'ID not found!'});
             }
