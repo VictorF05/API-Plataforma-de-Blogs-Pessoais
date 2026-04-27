@@ -1,9 +1,9 @@
 const postValidator = {
     validateIdParams(req, res, next) {
-        const postId = req.params.id;
+        /*const postId = req.params.id;
         if (!/^\d+$/.test(postId)) {
             return res.status(400).json({ error: 'Invalid ID format. Must be a number.' });
-        }
+        }*/
         next();
     },
 
